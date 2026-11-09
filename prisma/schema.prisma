@@ -1,0 +1,315 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  DRIVER
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  BUY_X_GET_Y
+}
+
+enum PromotionKind {
+  AUTOMATIC
+  FLASH_SALE
+  PROMO_CODE
+}
+
+enum PaymentMethod {
+  CASH_ON_DELIVERY
+  CARD
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum ReturnStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model User {
+  id             String               @id @default(uuid()) @db.Uuid // User identifier.
+  name           String // Full display name.
+  email          String               @unique @db.VarChar(320) // Normalized login email.
+  passwordHash   String // Password hash; never store plaintext passwords.
+  role           Role                 @default(CUSTOMER) // Authorization role.
+  phone          String?              @db.VarChar(32) // Optional contact number.
+  createdAt      DateTime             @default(now()) // Account creation time.
+  updatedAt      DateTime             @updatedAt // Last account update.
+  addresses      Address[] // Saved customer addresses.
+  cart           Cart? // One active cart per user.
+  orders         Order[]              @relation("CustomerOrders") // Orders placed by this user.
+  drivenOrders   Order[]              @relation("DriverOrders") // Orders assigned when this user is a driver.
+  statusChanges  OrderStatusHistory[] @relation("StatusChangedBy") // Status changes made by this user.
+  returnRequests ReturnRequest[] // Returns opened by this user.
+  complaints     Complaint[] // Support tickets opened by this user.
+  productReviews ProductReview[] // Reviews written by this user.
+  refreshTokens  RefreshToken[] // Hashed refresh-token sessions.
+
+  @@index([role, createdAt])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid // Session identifier.
+  userId    String    @db.Uuid // Session owner.
+  tokenHash String    @unique // Hash of refresh token, never the raw token.
+  expiresAt DateTime // Expiration time.
+  revokedAt DateTime? // Set on logout or revocation.
+  createdAt DateTime  @default(now()) // Session creation time.
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model Address {
+  id            String   @id @default(uuid()) @db.Uuid // Address identifier.
+  userId        String   @db.Uuid // Address owner.
+  label         String? // e.g. Home or Work.
+  recipientName String // Delivery recipient.
+  phone         String? // Delivery contact number.
+  line1         String // Street and building.
+  line2         String? // Apartment or additional details.
+  city          String // City or locality.
+  region        String? // State, province, or region.
+  postalCode    String? // Postal code.
+  countryCode   String   @db.Char(2) // ISO 3166-1 alpha-2 country code.
+  isDefault     Boolean  @default(false) // Whether this is the default address.
+  createdAt     DateTime @default(now()) // Creation time.
+  updatedAt     DateTime @updatedAt // Last update time.
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isDefault])
+}
+
+model Category {
+  id               String     @id @default(uuid()) @db.Uuid // Category identifier.
+  name             String // Display name.
+  slug             String     @unique // URL-friendly unique name.
+  parentCategoryId String?    @db.Uuid // Parent category for nested categories.
+  createdAt        DateTime   @default(now()) // Creation time.
+  updatedAt        DateTime   @updatedAt // Last update time.
+  parent           Category?  @relation("CategoryTree", fields: [parentCategoryId], references: [id], onDelete: SetNull)
+  subcategories    Category[] @relation("CategoryTree")
+  products         Product[] // Products assigned to this category.
+
+  @@index([parentCategoryId])
+}
+
+model Product {
+  id            String          @id @default(uuid()) @db.Uuid // Product identifier.
+  title         String // Storefront product title.
+  slug          String          @unique // URL-friendly unique title.
+  description   String? // Product description.
+  price         Decimal         @db.Decimal(12, 2) // Current unit price.
+  stockQuantity Int             @default(0) // Available stock.
+  sku           String          @unique // Inventory keeping unit.
+  images        String[]        @default([]) // Product image URLs.
+  categoryId    String?         @db.Uuid // Optional category assignment.
+  ratingAverage Decimal         @default(0) @db.Decimal(3, 2) // Cached average rating.
+  isFeatured    Boolean         @default(false) // Storefront featured flag.
+  createdAt     DateTime        @default(now()) // Creation time.
+  updatedAt     DateTime        @updatedAt // Last update time.
+  category      Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  reviews       ProductReview[] // Customer reviews.
+  cartItems     CartItem[] // Cart lines referencing this product.
+  orderItems    OrderItem[] // Historical order lines referencing this product.
+
+  @@index([categoryId])
+  @@index([isFeatured, createdAt])
+  @@index([price])
+}
+
+model Cart {
+  id          String     @id @default(uuid()) @db.Uuid // Cart identifier.
+  userId      String     @unique @db.Uuid // Cart owner; one cart per user.
+  totalAmount Decimal    @default(0) @db.Decimal(12, 2) // Cached amount; recalculate before checkout.
+  createdAt   DateTime   @default(now()) // Creation time.
+  updatedAt   DateTime   @updatedAt // Last cart update.
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       CartItem[] // Cart product lines.
+}
+
+model CartItem {
+  id        String   @id @default(uuid()) @db.Uuid // Cart line identifier.
+  cartId    String   @db.Uuid // Parent cart.
+  productId String   @db.Uuid // Product in this line.
+  quantity  Int // Requested quantity.
+  price     Decimal  @db.Decimal(12, 2) // Unit price snapshot; revalidate at checkout.
+  createdAt DateTime @default(now()) // Creation time.
+  updatedAt DateTime @updatedAt // Last line update.
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([cartId, productId])
+  @@index([productId])
+}
+
+model Discount {
+  id                String          @id @default(uuid()) @db.Uuid // Discount identifier.
+  name              String // Promotion name for admin and storefront display.
+  kind              PromotionKind   @default(AUTOMATIC) // Auto-applied offer, flash sale, or customer code.
+  code              String?         @unique // Optional customer-entered code.
+  type              DiscountType // Percentage, fixed amount, or buy/get rule.
+  value             Decimal         @db.Decimal(12, 2) // Percent or amount; BxGy uses quantities below.
+  minPurchaseAmount Decimal?        @db.Decimal(12, 2) // Minimum subtotal to qualify.
+  buyQuantity       Int? // Required purchased quantity for BUY_X_GET_Y.
+  getQuantity       Int? // Reward quantity for BUY_X_GET_Y.
+  startDate         DateTime // Promotion start, including flash sales.
+  endDate           DateTime // Promotion expiry.
+  isActive          Boolean         @default(false) // Admin-controlled activation.
+  createdAt         DateTime        @default(now()) // Creation time.
+  updatedAt         DateTime        @updatedAt // Last update time.
+  orderApplications OrderDiscount[] // Orders where this discount was used.
+
+  @@index([isActive, startDate, endDate])
+}
+
+model Order {
+  id              String               @id @default(uuid()) @db.Uuid // Order identifier.
+  userId          String               @db.Uuid // Customer who placed the order.
+  idempotencyKey  String? // Client key to prevent duplicate checkout submissions.
+  driverId        String?              @db.Uuid // Optional assigned delivery driver.
+  status          OrderStatus          @default(PENDING) // Current fulfillment status.
+  paymentStatus   PaymentStatus        @default(PENDING) // Current payment state.
+  paymentMethod   PaymentMethod        @default(CASH_ON_DELIVERY) // Selected checkout method.
+  currency        String               @default("USD") @db.Char(3) // ISO currency code.
+  subtotal        Decimal              @db.Decimal(12, 2) // Amount before discount.
+  discountApplied Decimal              @default(0) @db.Decimal(12, 2) // Total discount amount.
+  totalAmount     Decimal              @db.Decimal(12, 2) // Final amount due or charged.
+  shippingAddress Json // Immutable address snapshot for this order.
+  deliveryDate    DateTime? // Date/time order was delivered.
+  createdAt       DateTime             @default(now()) // Order creation time.
+  updatedAt       DateTime             @updatedAt // Last order update.
+  user            User                 @relation("CustomerOrders", fields: [userId], references: [id], onDelete: Restrict)
+  driver          User?                @relation("DriverOrders", fields: [driverId], references: [id], onDelete: SetNull)
+  items           OrderItem[] // Purchased product snapshots.
+  statusHistory   OrderStatusHistory[] // Tracking timeline.
+  discounts       OrderDiscount[] // Applied discounts.
+  returnRequests  ReturnRequest[] // Return requests for this order.
+  complaints      Complaint[] // Related customer complaints.
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([driverId, status])
+  @@index([status, createdAt])
+}
+
+model OrderItem {
+  id           String   @id @default(uuid()) @db.Uuid // Order line identifier.
+  orderId      String   @db.Uuid // Parent order.
+  productId    String?  @db.Uuid // Optional link to current product record.
+  productTitle String // Product title snapshot at checkout.
+  sku          String // SKU snapshot at checkout.
+  quantity     Int // Purchased quantity.
+  unitPrice    Decimal  @db.Decimal(12, 2) // Unit price at checkout.
+  lineTotal    Decimal  @db.Decimal(12, 2) // Line subtotal before order-level discounts.
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderDiscount {
+  orderId       String   @db.Uuid // Order receiving the discount.
+  discountId    String   @db.Uuid // Discount applied.
+  amountApplied Decimal  @db.Decimal(12, 2) // Amount this discount reduced.
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  discount      Discount @relation(fields: [discountId], references: [id], onDelete: Restrict)
+
+  @@id([orderId, discountId])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid()) @db.Uuid // Tracking event identifier.
+  orderId   String      @db.Uuid // Order whose status changed.
+  status    OrderStatus // Status recorded for this event.
+  updatedBy String?     @db.Uuid // Actor user ID; null for system updates.
+  note      String? // Optional tracking note.
+  timestamp DateTime    @default(now()) // Event occurrence time.
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor     User?       @relation("StatusChangedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@index([orderId, timestamp])
+}
+
+model ReturnRequest {
+  id                  String       @id @default(uuid()) @db.Uuid // Return identifier.
+  orderId             String       @db.Uuid // Order being returned.
+  userId              String       @db.Uuid // Customer requesting return.
+  reason              String // Customer-provided return reason.
+  status              ReturnStatus @default(PENDING) // Return processing status.
+  requestedAt         DateTime     @default(now()) // Submission time.
+  maxReturnWindowDays Int          @default(14) // Eligibility-window snapshot in days.
+  order               Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  user                User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([userId, requestedAt])
+  @@index([status, requestedAt])
+}
+
+model Complaint {
+  id               String          @id @default(uuid()) @db.Uuid // Ticket identifier.
+  userId           String          @db.Uuid // Customer who opened the ticket.
+  orderId          String?         @db.Uuid // Optional related order.
+  subject          String // Ticket subject.
+  message          String // Initial complaint message.
+  status           ComplaintStatus @default(OPEN) // Current support state.
+  hotlineReference String? // Optional hotline/support reference.
+  createdAt        DateTime        @default(now()) // Ticket creation time.
+  updatedAt        DateTime        @updatedAt // Last ticket update.
+  user             User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order            Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model ProductReview {
+  id        String   @id @default(uuid()) @db.Uuid // Review identifier.
+  productId String   @db.Uuid // Reviewed product.
+  userId    String   @db.Uuid // Review author.
+  rating    Int // Rating from 1 to 5; validate in the API.
+  comment   String? // Optional written review.
+  createdAt DateTime @default(now()) // Review creation time.
+  updatedAt DateTime @updatedAt // Last review edit.
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId])
+  @@index([productId, createdAt])
+}
