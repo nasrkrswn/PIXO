@@ -45,7 +45,7 @@ export function StorefrontHeader() {
           </div>
         </div>
         <nav className="store-nav" aria-label="التنقل الرئيسي">
-          <Link href="/#categories">الأقسام</Link><Link href="/products">الأكثر مبيعاً</Link><Link href="/#flash-sales" className="sale-link">عروض فلاش</Link><Link href="/admin">&#x62F;&#x62E;&#x648;&#x644; &#x627;&#x644;&#x625;&#x62F;&#x627;&#x631;&#x629;</Link>
+          <Link href="/#categories">الأقسام</Link><Link href="/products">الأكثر مبيعاً</Link><Link href="/#flash-sales" className="sale-link">عروض فلاش</Link>
           <span className="nav-promise">توصيل سريع وآمن لكل المحافظات</span>
         </nav>
       </header>
