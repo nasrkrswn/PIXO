@@ -120,3 +120,6 @@
 @keyframes intro-minimal-exit{to{opacity:0;transform:scale(1.025);visibility:hidden}}
 @media(max-width:700px){.intro-logo{font-size:clamp(4.5rem,23vw,10rem);text-shadow:0 1px 0 #d9caff,0 2px 0 #b9a2ff,0 3px 0 #9581ed,0 4px 0 #7464d5,0 5px 0 #5c50b9,0 6px 0 #493f98,0 7px 0 #383274,0 8px 0 #292657,0 9px 0 #1e1e43,0 13px 15px #060813b3,0 22px 30px #050711a6,0 0 30px #7f67ff40}}
 @media(prefers-reduced-motion:reduce){.intro-screen.intro-minimal:before,.intro-logo-wrap,.intro-logo,.intro-logo:after{animation:none!important;transition:none!important}.intro-logo-wrap,.intro-logo{transform:none!important}}
+
+.product-discount-badge{position:absolute;top:11px;left:11px;padding:5px 8px;border-radius:5px;background:#fff0e8;color:#d45226;font-size:8px;font-weight:800}.product-price-stack{display:flex;align-items:baseline;gap:7px}.product-price-stack strong{color:#262942}.product-price-stack del{color:#989bad;font-size:9px;font-weight:500}.cart-price-stack{display:flex;align-items:center;gap:7px}.cart-price-stack del{color:#9a9eac;font-size:10px}
+.cart-price-stack b{color:var(--primary);font-size:13px}

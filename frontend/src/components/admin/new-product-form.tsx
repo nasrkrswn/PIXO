@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, ImagePlus, LoaderCircle, Save } from "lucide-react";
 import { useMockData } from "@/context/mock-data-context";
+import { createSupabaseProduct, isSupabaseConfigured } from "@/lib/supabase";
 
 export function NewProductForm() {
   const { addProduct } = useMockData();
@@ -53,25 +54,39 @@ export function NewProductForm() {
     try {
       const categoryName = String(form.get("category") ?? "إلكترونيات");
       const image = selectedImage || String(form.get("image") ?? "").trim();
-      addProduct({
-        id: `demo-product-${Date.now()}`,
+      const price = Number(form.get("price"));
+      const compareAtPrice = Number(form.get("compareAtPrice")) || undefined;
+      const categorySlugs: Record<string, string> = { "إلكترونيات": "electronics", "المنزل": "home", "الأزياء": "fashion", "الجمال": "beauty" };
+      const productInput = {
         title: String(form.get("title") ?? "").trim(),
         description: String(form.get("description") ?? "").trim(),
-        price: Number(form.get("price")),
+        price,
+        compareAtPrice: compareAtPrice && compareAtPrice > price ? compareAtPrice : undefined,
         stockQuantity: Number(form.get("stockQuantity")),
         sku: String(form.get("sku") ?? "").trim(),
         images: image ? [image] : [],
-        ratingAverage: 0,
-        isFeatured: false,
-        category: { id: `demo-${categoryName}`, name: categoryName, slug: categoryName.toLowerCase() },
-      });
-      setMessage("تمت إضافة المنتج إلى بيانات العرض المحلية في هذا المتصفح.");
+        category: { name: categoryName, slug: categorySlugs[categoryName] ?? "electronics" },
+      };
+      if (isSupabaseConfigured) {
+        const product = await createSupabaseProduct(productInput);
+        addProduct(product);
+        setMessage("تم حفظ المنتج في كتالوج Supabase.");
+      } else {
+        addProduct({
+          ...productInput,
+          id: `demo-product-${Date.now()}`,
+          ratingAverage: 0,
+          isFeatured: false,
+          category: { id: `demo-${productInput.category.slug}`, ...productInput.category },
+        });
+        setMessage("تمت إضافة المنتج إلى بيانات العرض المحلية في هذا المتصفح.");
+      }
       formElement.reset();
       setSelectedImage("");
       setImageError("");
-    } catch {
+    } catch (cause) {
       setError(true);
-      setMessage("تعذر حفظ المنتج محلياً. حاول مرة أخرى.");
+      setMessage(cause instanceof Error ? cause.message : "تعذر حفظ المنتج. تحقق من إعداد Supabase وحاول مرة أخرى.");
     } finally {
       setBusy(false);
     }
@@ -84,9 +99,9 @@ export function NewProductForm() {
         <label className="field-label">الوصف<textarea name="description" rows={4} placeholder="اكتب وصفاً واضحاً ومفيداً للمنتج" /></label>
         <div className="form-two-cols"><label className="field-label">القسم<select name="category" defaultValue="إلكترونيات"><option>إلكترونيات</option><option>المنزل</option><option>الأزياء</option><option>الجمال</option></select></label><label className="field-label">رمز المنتج SKU<input name="sku" required maxLength={80} placeholder="PX-AUDIO-01" /></label></div>
       </div>
-      <div className="form-section"><div className="form-section-head"><span className="form-number">02</span><div><h2>السعر والمخزون</h2><p>حدد سعر البيع والكمية المتاحة</p></div></div><div className="form-two-cols"><label className="field-label">السعر بالجنيه المصري<input name="price" type="number" required min="0.01" step="0.01" placeholder="0.00" /></label><label className="field-label">الكمية في المخزون<input name="stockQuantity" type="number" required min="0" step="1" placeholder="0" /></label></div></div>
+      <div className="form-section"><div className="form-section-head"><span className="form-number">02</span><div><h2>السعر والمخزون</h2><p>حدد سعر البيع والكمية المتاحة، وأضف السعر قبل الخصم عند وجود عرض</p></div></div><div className="form-two-cols"><label className="field-label">السعر بعد الخصم بالجنيه المصري<input name="price" type="number" required min="0.01" step="0.01" placeholder="0.00" /></label><label className="field-label">السعر قبل الخصم (اختياري)<input name="compareAtPrice" type="number" min="0.01" step="0.01" placeholder="اتركه فارغاً دون خصم" /></label><label className="field-label">الكمية في المخزون<input name="stockQuantity" type="number" required min="0" step="1" placeholder="0" /></label></div></div>
       <div className="form-section"><div className="form-section-head"><span className="form-number">03</span><div><h2>صورة المنتج</h2><p>أضف رابطاً أو اختر صورة من الاستديو</p></div></div><label className="field-label">رابط الصورة<input name="image" type="url" placeholder="https://example.com/product.jpg" /></label><label className={`image-dropzone${selectedImage ? " has-image" : ""}`} htmlFor="product-image-upload">{selectedImage ? <Image src={selectedImage} alt="معاينة صورة المنتج" width={64} height={52} unoptimized /> : <ImagePlus size={24} />}<span>{imageBusy ? "جارٍ تجهيز الصورة..." : selectedImage ? "تم اختيار الصورة — اضغط لتغييرها" : "اختر صورة من الاستديو"}</span><input id="product-image-upload" className="sr-only" type="file" accept="image/*" onChange={selectImage} /></label>{imageError && <p className="image-error" role="alert">{imageError}</p>}</div>
-      <p className="form-message form-success">الحفظ محلي على هذا الجهاز فقط، ولن يظهر للزوار الآخرين.</p>
+      <p className="form-message form-success">{isSupabaseConfigured ? "يُحفظ المنتج في Supabase ولا يمكن الإضافة إلا بحساب مسؤول مصرح به." : "الحفظ محلي على هذا الجهاز فقط، ولن يظهر للزوار الآخرين."}</p>
       {message && <p className={`form-message ${error ? "form-error" : "form-success"}`} role="status">{message}</p>}
       <div className="form-actions"><Link href="/admin" className="button button-quiet">إلغاء</Link><button className="button button-primary" disabled={busy || imageBusy}>{busy || imageBusy ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}{imageBusy ? "جارٍ تجهيز الصورة" : busy ? "جارٍ الحفظ" : "حفظ المنتج"}</button></div>
     </form>

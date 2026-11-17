@@ -5,28 +5,30 @@ import Link from "next/link";
 import { ArrowDownLeft, ArrowUpLeft, BadgePercent, CalendarDays, CircleDollarSign, MoreHorizontal, PackagePlus, ShoppingBag, Users } from "lucide-react";
 import { demoOrderStatusLabels, useMockData, type DemoOrderStatus } from "@/context/mock-data-context";
 import { OrderDetailsPanel } from "@/components/admin/order-details-panel";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 const money = (value: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(value);
 
 export function AdminDashboard() {
-  const { orders, products, updateOrderStatus } = useMockData();
+  const { orders, products, productsError, productsLoading, updateOrderStatus } = useMockData();
   const [notice, setNotice] = useState("");
   const salesTotal = orders.reduce((sum, order) => sum + order.amount, 0);
   const customerCount = new Set(orders.map((order) => order.customer)).size;
   function updateStatus(id: string, status: DemoOrderStatus) {
     updateOrderStatus(id, status);
-    setNotice("تم حفظ الحالة في بيانات العرض المحلية.");
+    setNotice("تم حفظ حالة الطلب في بيانات هذا المتصفح فقط.");
     window.setTimeout(() => setNotice(""), 3500);
   }
 
   return <main className="admin-main">
     <div className="admin-page-title"><div><span className="eyebrow">نظرة عامة</span><h1>أهلاً بيك في لوحة PIXO</h1><p>إليك ملخص سريع لأداء متجرك اليوم.</p></div><button className="date-filter"><CalendarDays size={16} /> آخر ٣٠ يوم <MoreHorizontal size={17} /></button></div>
-    <div className="admin-preview-note"><span>i</span> وضع تجريبي محلي: البيانات والتغييرات محفوظة في هذا المتصفح فقط ولا تتصل بخادم أو قاعدة بيانات.</div>
+    <div className="admin-preview-note"><span>i</span>{isSupabaseConfigured ? "كتالوج المنتجات متصل بـ Supabase ومتزامن بين الأجهزة. إدارة الطلبات والإحصائيات ما زالت تجريبية ومحلية." : "وضع تجريبي محلي: بيانات المنتجات والطلبات محفوظة في هذا المتصفح فقط ولا تتصل بقاعدة بيانات."}</div>
+    {productsError && <p className="form-message form-error" role="alert">تعذر تحميل كتالوج Supabase: {productsError}</p>}
     <section className="stats-grid" aria-label="إحصائيات المتجر">
       <StatCard title="إجمالي المبيعات" value={money(salesTotal)} detail="قيمة الطلبات التجريبية" change="—" positive icon={CircleDollarSign} tone="stat-indigo" />
       <StatCard title="عدد الطلبات" value={new Intl.NumberFormat("ar-EG").format(orders.length)} detail="طلب محفوظ محلياً" change="—" positive icon={ShoppingBag} tone="stat-amber" />
       <StatCard title="العملاء" value={new Intl.NumberFormat("ar-EG").format(customerCount)} detail="في بيانات المعاينة" change="—" positive icon={Users} tone="stat-green" />
-      <StatCard title="المنتجات" value={new Intl.NumberFormat("ar-EG").format(products.length)} detail="في الكتالوج المحلي" change="—" positive icon={PackagePlus} tone="stat-violet" />
+      <StatCard title="المنتجات" value={productsLoading ? "…" : new Intl.NumberFormat("ar-EG").format(products.length)} detail={isSupabaseConfigured ? "في كتالوج Supabase" : "في الكتالوج المحلي"} change="—" positive icon={PackagePlus} tone="stat-violet" />
     </section>
 
     <OrderDetailsPanel orders={orders} onStatusChange={updateStatus} />

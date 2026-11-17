@@ -3,7 +3,10 @@ export interface StoreProduct {
   title: string;
   description?: string | null;
   price: string | number;
-  stockQuantity: number;
+  /** Optional pre-discount price shown beside the active sale price. */
+  compareAtPrice?: string | number | null;
+  discountBadge?: string | null;
+  stockQuantity?: number;
   sku: string;
   images: string[];
   ratingAverage: string | number;

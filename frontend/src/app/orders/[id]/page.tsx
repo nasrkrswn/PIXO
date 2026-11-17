@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowRight, Check, House, PackageCheck, Truck } from "lucide-react";
-import { demoOrderStatusLabels, useMockData, type DemoOrderStatus } from "@/context/mock-data-context";
+import { demoOrderStatusLabels, useMockData, type DemoOrderStatus, type DemoPaymentMethod } from "@/context/mock-data-context";
 import { useAuth } from "@/context/auth-context";
 
 const money = (value: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(value);
@@ -15,6 +15,7 @@ const steps: Array<{ status: DemoOrderStatus; title: string; english: string; de
   { status: "DELIVERED", title: "\u062a\u0645 \u0627\u0644\u062a\u0648\u0635\u064a\u0644", english: "Delivered", description: "\u062a\u0645 \u062a\u0633\u0644\u064a\u0645 \u0637\u0644\u0628\u0643.", icon: Check },
 ];
 const statusOrder: DemoOrderStatus[] = ["PENDING", "CONFIRMED", "PROCESSING", "OUT_FOR_DELIVERY", "DELIVERED"];
+const paymentLabels: Record<DemoPaymentMethod, string> = { cod: "الدفع عند الاستلام", instapay: "إنستا باي", vodafone_cash: "فودافون كاش", visa: "فيزا / بطاقة بنكية", card: "بطاقة — تجربة محلية" };
 
 export default function OrderTrackingPage() {
   const params = useParams<{ id: string }>();
@@ -41,7 +42,7 @@ export default function OrderTrackingPage() {
         <div className="tracking-items">{order.items.map((item) => <article className="tracking-item" key={`${order.id}-${item.productId}`}><div className="tracking-item-image" style={item.image ? { backgroundImage: `url("${item.image}")` } : undefined} /><div><h3>{item.title}</h3><p>الكمية: {item.quantity}</p></div><strong>{money(item.quantity * item.unitPrice)}</strong></article>)}</div>
         <div className="tracking-total"><span>إجمالي الطلب</span><strong>{money(order.amount)}</strong></div>
       </section>
-      <aside className="tracking-card tracking-delivery"><div className="tracking-card-heading"><h2>بيانات التوصيل</h2><House size={17} /></div><b>{order.customer}</b><p dir="ltr">{order.phone || "—"}</p><p>{order.shippingAddress || "لم يضف عنوان توصيل"}</p><div className="tracking-payment"><span>طريقة الدفع</span><strong>{order.paymentMethod === "card" ? "بطاقة — محاكاة محلية" : "الدفع عند الاستلام"}</strong></div></aside>
+      <aside className="tracking-card tracking-delivery"><div className="tracking-card-heading"><h2>بيانات التوصيل</h2><House size={17} /></div><b>{order.customer}</b><p dir="ltr">{order.phone || "—"}</p><p>{order.shippingAddress || "لم يضف عنوان توصيل"}</p><div className="tracking-payment"><span>طريقة الدفع</span><strong>{paymentLabels[order.paymentMethod]}</strong></div></aside>
     </div>
   </main>;
 }

@@ -1,10 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { demoProducts } from "@/lib/demo-products";
+import { fetchSupabaseProducts, isSupabaseConfigured } from "@/lib/supabase";
 import type { StoreProduct } from "@/types/product";
 
 export type DemoOrderStatus = "PENDING" | "CONFIRMED" | "PROCESSING" | "SHIPPED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
+export type DemoPaymentMethod = "cod" | "instapay" | "vodafone_cash" | "visa" | "card";
 
 export const demoOrderStatusLabels: Record<DemoOrderStatus, string> = {
   PENDING: "\u062a\u0645 \u0627\u0633\u062a\u0644\u0627\u0645 \u0627\u0644\u0637\u0644\u0628",
@@ -31,7 +33,7 @@ export interface DemoOrder {
   customerEmail: string;
   phone: string;
   shippingAddress: string;
-  paymentMethod: "cod" | "card";
+  paymentMethod: DemoPaymentMethod;
   items: DemoOrderItem[];
   date: string;
   amount: number;
@@ -50,8 +52,11 @@ export interface DemoPromotion {
 
 interface MockDataValue {
   products: StoreProduct[];
+  productsLoading: boolean;
+  productsError: string;
   orders: DemoOrder[];
   promotions: DemoPromotion[];
+  refreshProducts: () => Promise<void>;
   addProduct: (product: StoreProduct) => void;
   addOrder: (order: DemoOrder) => void;
   updateOrderStatus: (orderId: string, status: DemoOrderStatus) => void;
@@ -92,21 +97,49 @@ const initialPromotions: DemoPromotion[] = [{
 const MockDataContext = createContext<MockDataValue | null>(null);
 
 export function MockDataProvider({ children }: { children: ReactNode }) {
-  const [products, setProducts] = useState<StoreProduct[]>(demoProducts);
+  const [products, setProducts] = useState<StoreProduct[]>(isSupabaseConfigured ? [] : demoProducts);
+  const [productsLoading, setProductsLoading] = useState(isSupabaseConfigured);
+  const [productsError, setProductsError] = useState("");
   const [orders, setOrders] = useState<DemoOrder[]>(completeInitialOrders);
   const [promotions, setPromotions] = useState<DemoPromotion[]>(initialPromotions);
   const [hydrated, setHydrated] = useState(false);
 
+  const refreshProducts = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const remoteProducts = await fetchSupabaseProducts();
+      setProducts(remoteProducts);
+      setProductsError("");
+    } catch (cause) {
+      setProductsError(cause instanceof Error ? cause.message : "تعذر تحميل كتالوج المنتجات من Supabase.");
+    } finally {
+      setProductsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
+    let syncing = false;
+    const syncProducts = async () => {
+      if (syncing || !active) return;
+      syncing = true;
+      try {
+        await refreshProducts();
+      } finally {
+        syncing = false;
+      }
+    };
+
     void Promise.resolve().then(() => {
       try {
         const raw = window.localStorage.getItem(STORAGE_KEY);
         if (raw) {
           const stored: unknown = JSON.parse(raw);
-          if (isStoredMockData(stored) && active) {
-            const demoIds = new Set(demoProducts.map((product) => product.id));
-            setProducts([...demoProducts, ...stored.products.filter((product) => !demoIds.has(product.id))]);
+          if (isStoredMockData(stored)) {
+            if (!isSupabaseConfigured) {
+              const demoIds = new Set(demoProducts.map((product) => product.id));
+              setProducts([...demoProducts, ...stored.products.filter((product) => !demoIds.has(product.id))]);
+            }
             setOrders(stored.orders.map(normalizeStoredOrder));
             setPromotions(stored.promotions);
           }
@@ -116,9 +149,28 @@ export function MockDataProvider({ children }: { children: ReactNode }) {
       } finally {
         if (active) setHydrated(true);
       }
+      if (isSupabaseConfigured) void syncProducts();
     });
+
+    if (isSupabaseConfigured) {
+      const interval = window.setInterval(() => {
+        if (!document.hidden) void syncProducts();
+      }, 20_000);
+      const refreshWhenVisible = () => {
+        if (document.visibilityState === "visible") void syncProducts();
+      };
+      window.addEventListener("focus", refreshWhenVisible);
+      document.addEventListener("visibilitychange", refreshWhenVisible);
+      return () => {
+        active = false;
+        window.clearInterval(interval);
+        window.removeEventListener("focus", refreshWhenVisible);
+        document.removeEventListener("visibilitychange", refreshWhenVisible);
+      };
+    }
+
     return () => { active = false; };
-  }, []);
+  }, [refreshProducts]);
 
   useEffect(() => {
     function syncOrdersAcrossTabs(event: StorageEvent) {
@@ -132,17 +184,24 @@ export function MockDataProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", syncOrdersAcrossTabs);
   }, []);
   useEffect(() => {
-    if (hydrated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ products, orders, promotions }));
+    if (hydrated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      products: isSupabaseConfigured ? [] : products,
+      orders,
+      promotions,
+    }));
   }, [hydrated, orders, products, promotions]);
 
   const value = useMemo<MockDataValue>(() => ({
     products,
+    productsLoading,
+    productsError,
     orders,
     promotions,
-    addProduct: (product) => setProducts((current) => [product, ...current]),
+    refreshProducts,
+    addProduct: (product) => setProducts((current) => [product, ...current.filter((item) => item.id !== product.id)]),
     addOrder: (order) => setOrders((current) => [order, ...current]),
     updateOrderStatus: (orderId, status) => setOrders((current) => current.map((order) => order.id === orderId ? { ...order, status } : order)),
-  }), [orders, products, promotions]);
+  }), [orders, products, promotions, productsLoading, productsError, refreshProducts]);
 
   return <MockDataContext.Provider value={value}>{children}</MockDataContext.Provider>;
 }
