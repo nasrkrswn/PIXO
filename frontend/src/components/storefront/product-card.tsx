@@ -14,6 +14,7 @@ export function ProductCard({ product }: { product: StoreProduct }) {
   const price = Number(product.price);
   const compareAtPrice = Number(product.compareAtPrice ?? 0);
   const discountPercent = compareAtPrice > price ? Math.round((1 - price / compareAtPrice) * 100) : 0;
+  const inStock = Number(product.stockQuantity ?? 0) > 0;
   const CategoryIcon = product.category?.name === "المنزل" ? House : product.category?.name === "الأزياء" ? Watch : product.category?.name === "الجمال" ? Sparkles : Laptop;
 
   function addToCart() {
@@ -36,8 +37,8 @@ export function ProductCard({ product }: { product: StoreProduct }) {
         <h3>{product.title}</h3>
         {product.description && <p className="product-description">{product.description}</p>}
         <div className="product-rating"><Star size={14} fill="currentColor" /><b>{Number(product.ratingAverage || 0).toFixed(1)}</b><span>تقييم العملاء</span></div>
-        <div className="product-price-row"><div className="product-price-stack"><strong>{money(price)}</strong>{discountPercent > 0 && <del>{money(compareAtPrice)}</del>}</div><span className={product.stockQuantity ? "stock-in" : "stock-out"}>{product.stockQuantity ? "متوفر" : "نفد"}</span></div>
-        <button className="button button-add" onClick={addToCart} disabled={product.stockQuantity <= 0}>{added ? <Check size={17} /> : <ShoppingCart size={17} />}{added ? "أُضيف للسلة" : "أضف إلى السلة"}</button>
+        <div className={`product-price-row${discountPercent ? " has-discount" : ""}`}><div className="product-price-stack"><strong>{money(price)}</strong>{discountPercent > 0 && <><del>{money(compareAtPrice)}</del><small className="product-savings">وفّرت {money(compareAtPrice - price)}</small></>}</div><span className={inStock ? "stock-in" : "stock-out"}>{inStock ? "متوفر" : "نفد"}</span></div>
+        <button className="button button-add" onClick={addToCart} disabled={!inStock}>{added ? <Check size={17} /> : <ShoppingCart size={17} />}{added ? "أُضيف للسلة" : "أضف إلى السلة"}</button>
       </div>
     </article>
   );

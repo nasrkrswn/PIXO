@@ -123,3 +123,28 @@
 
 .product-discount-badge{position:absolute;top:11px;left:11px;padding:5px 8px;border-radius:5px;background:#fff0e8;color:#d45226;font-size:8px;font-weight:800}.product-price-stack{display:flex;align-items:baseline;gap:7px}.product-price-stack strong{color:#262942}.product-price-stack del{color:#989bad;font-size:9px;font-weight:500}.cart-price-stack{display:flex;align-items:center;gap:7px}.cart-price-stack del{color:#9a9eac;font-size:10px}
 .cart-price-stack b{color:var(--primary);font-size:13px}
+
+/* Brighter PIXO catalog palette and clearer sale pricing. */
+:root{--primary:#5b4bff;--primary-dark:#4032c9;--accent:#ffad42;--ink:#20213b;--green:#16845d}
+.product-card{border:1px solid #e8e5ff;border-radius:15px;background:linear-gradient(180deg,#fff 0%,#fdfcff 100%);box-shadow:0 5px 18px #4338ca0a;transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+.product-card:hover{transform:translateY(-5px);border-color:#cfc9ff;box-shadow:0 18px 38px #4338ca20}
+.product-card-image{height:218px;background-color:#f2f0ff;background-image:linear-gradient(145deg,#f5f3ff 0%,#fff8ec 100%);background-blend-mode:normal}
+.product-card-body{padding:15px}
+.product-category{display:inline-flex;padding:4px 8px;border-radius:20px;background:#f0edff;color:#5b4bce;font-size:9px;font-weight:700}
+.product-badge{background:linear-gradient(135deg,#5b4bff,#8e59e8);color:#fff;box-shadow:0 4px 12px #5b4bff35}
+.product-discount-badge{background:linear-gradient(135deg,#ff785f,#ff496d);color:#fff;box-shadow:0 4px 12px #ff5b6c35;font-size:9px}
+.product-card-image:has(.product-badge):has(.product-discount-badge) .product-discount-badge{top:42px}
+.favorite-button{box-shadow:0 4px 13px #25204a1c;transition:transform .18s ease,color .18s ease}
+.favorite-button:hover{transform:scale(1.08);color:#f04f77}
+.product-price-row{min-height:48px}
+.product-price-stack{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.product-price-stack strong{color:#3931b8;font-size:17px;font-weight:800}
+.product-price-row.has-discount .product-price-stack strong{color:#e44d62}
+.product-price-stack del{color:#9b9bad;font-size:10px}
+.product-savings{width:100%;margin-top:-3px;color:#16845d;font-size:9px;font-weight:700}
+.stock-in,.stock-out{padding:4px 8px;border-radius:20px;background:#eaf8f0;color:#16845d;font-size:9px;font-weight:700}
+.stock-out{background:#fff0f0;color:#c34254}
+.button-add{border:0;border-radius:9px;background:linear-gradient(110deg,#5b4bff,#7553e8);color:#fff;box-shadow:0 6px 14px #5b4bff24;transition:transform .18s ease,box-shadow .18s ease,filter .18s ease}
+.button-add:hover{transform:translateY(-1px);background:linear-gradient(110deg,#4939ed,#6543d8);color:#fff;box-shadow:0 9px 18px #5b4bff35}
+.button-add:disabled{background:#d8d8e2;color:#77798a;box-shadow:none}
+.filter-chips button.selected,.filter-chips button:hover{border-color:#5b4bff;background:linear-gradient(110deg,#5b4bff,#7756ed);box-shadow:0 5px 13px #5b4bff25}

@@ -2,47 +2,61 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useState, type FormEvent } from "react";
 import { ArrowRight, Check, House, PackageCheck, Truck } from "lucide-react";
 import { demoOrderStatusLabels, useMockData, type DemoOrderStatus, type DemoPaymentMethod } from "@/context/mock-data-context";
 import { useAuth } from "@/context/auth-context";
 
 const money = (value: number) => new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(value);
 const steps: Array<{ status: DemoOrderStatus; title: string; english: string; description: string; icon: typeof Check }> = [
-  { status: "PENDING", title: "\u062a\u0645 \u0627\u0633\u062a\u0644\u0627\u0645 \u0627\u0644\u0637\u0644\u0628", english: "Order Placed", description: "\u0627\u0633\u062a\u0644\u0645\u0646\u0627 \u0637\u0644\u0628\u0643 \u0628\u0646\u062c\u0627\u062d.", icon: Check },
-  { status: "CONFIRMED", title: "\u062a\u0645 \u0627\u0644\u062a\u0623\u0643\u062f \u0645\u0646 \u0627\u0644\u0637\u0644\u0628", english: "Order Confirmed", description: "\u0627\u0644\u0645\u062a\u062c\u0631 \u0623\u0643\u0651\u062f \u0627\u0633\u062a\u0644\u0627\u0645 \u0627\u0644\u0637\u0644\u0628.", icon: PackageCheck },
-  { status: "PROCESSING", title: "\u062c\u0627\u0631\u064a \u0627\u0644\u062a\u062d\u0636\u064a\u0631", english: "Preparing", description: "\u0646\u062c\u0647\u0651\u0632 \u0645\u0646\u062a\u062c\u0627\u062a\u0643 \u0644\u0644\u0634\u062d\u0646.", icon: PackageCheck },
-  { status: "OUT_FOR_DELIVERY", title: "\u0641\u064a \u0627\u0644\u0637\u0631\u064a\u0642 \u0625\u0644\u064a\u0643", english: "Out for Delivery", description: "\u0627\u0644\u0645\u0646\u062f\u0648\u0628 \u0641\u064a \u0637\u0631\u064a\u0642\u0647 \u0625\u0644\u064a\u0643.", icon: Truck },
-  { status: "DELIVERED", title: "\u062a\u0645 \u0627\u0644\u062a\u0648\u0635\u064a\u0644", english: "Delivered", description: "\u062a\u0645 \u062a\u0633\u0644\u064a\u0645 \u0637\u0644\u0628\u0643.", icon: Check },
+  { status: "PENDING", title: "تم استلام الطلب", english: "Order Placed", description: "استلمنا طلبك بنجاح.", icon: Check },
+  { status: "CONFIRMED", title: "تم تأكيد الطلب", english: "Order Confirmed", description: "المتجر أكد استلام الطلب.", icon: PackageCheck },
+  { status: "PROCESSING", title: "جارٍ التحضير", english: "Preparing", description: "نجهز منتجاتك للتوصيل.", icon: PackageCheck },
+  { status: "OUT_FOR_DELIVERY", title: "في الطريق إليك", english: "Out for Delivery", description: "المندوب في طريقه إليك.", icon: Truck },
+  { status: "DELIVERED", title: "تم التوصيل", english: "Delivered", description: "تم تسليم طلبك.", icon: Check },
 ];
 const statusOrder: DemoOrderStatus[] = ["PENDING", "CONFIRMED", "PROCESSING", "OUT_FOR_DELIVERY", "DELIVERED"];
 const paymentLabels: Record<DemoPaymentMethod, string> = { cod: "الدفع عند الاستلام", instapay: "إنستا باي", vodafone_cash: "فودافون كاش", visa: "فيزا / بطاقة بنكية", card: "بطاقة — تجربة محلية" };
 
 export default function OrderTrackingPage() {
   const params = useParams<{ id: string }>();
+  const [guestPhone, setGuestPhone] = useState("");
+  const [verifiedGuestOrderId, setVerifiedGuestOrderId] = useState("");
   const { orders } = useMockData();
   const { user, loading } = useAuth();
   const foundOrder = orders.find((item) => item.id === params.id);
-  const order = user && foundOrder && (foundOrder.customerId === user.id || foundOrder.customerEmail?.toLowerCase() === user.email.toLowerCase()) ? foundOrder : null;
+  const isAccountOrder = Boolean(user && foundOrder && (foundOrder.customerId === user.id || foundOrder.customerEmail?.toLowerCase() === user.email.toLowerCase()));
+  const isVerifiedGuestOrder = Boolean(foundOrder && foundOrder.customerId === null && verifiedGuestOrderId === foundOrder.id && guestPhone.replace(/\D/g, "") === foundOrder.phone.replace(/\D/g, ""));
+  const order = isAccountOrder || isVerifiedGuestOrder ? foundOrder : null;
 
-  if (loading) return <main className="orders-page store-container"><section className="orders-empty">\u062c\u0627\u0631\u064d \u0627\u0644\u062a\u062d\u0642\u0642 \u0645\u0646 \u062d\u0633\u0627\u0628\u0643...</section></main>;
-  if (!user) return <main className="orders-page store-container"><section className="orders-empty"><span><PackageCheck size={27} /></span><h1>\u0633\u062c\u0651\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0644\u0639\u0631\u0636 \u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u0637\u0644\u0628</h1><p>\u0627\u0644\u0637\u0644\u0628\u0627\u062a \u0645\u0631\u062a\u0628\u0637\u0629 \u0628\u062d\u0633\u0627\u0628 \u0627\u0644\u0639\u0645\u064a\u0644 \u0644\u062d\u0645\u0627\u064a\u0629 \u0628\u064a\u0627\u0646\u0627\u062a\u0643.</p><Link href="/account" className="button button-primary">\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644</Link></section></main>;
+  if (loading) return <main className="orders-page store-container"><section className="orders-empty">جارٍ التحقق من حسابك...</section></main>;
 
-  if (!order) return <main className="orders-page store-container"><Link href="/orders" className="text-link"><ArrowRight size={15} /> العودة إلى طلباتي</Link><section className="orders-empty"><span><PackageCheck size={27} /></span><h1>لم نعثر على هذا الطلب</h1><p>تحقق من رقم الطلب وحاول مرة أخرى.</p></section></main>;
+  if (foundOrder && foundOrder.customerId === null && !order) {
+    function verifyGuestOrder(event: FormEvent<HTMLFormElement>) {
+      event.preventDefault();
+      setVerifiedGuestOrderId(foundOrder.id);
+    }
+    return <main className="orders-page store-container"><Link href="/track-order" className="text-link orders-back"><ArrowRight size={15} /> العودة لتتبع الطلبات</Link><section className="orders-empty"><span><PackageCheck size={27} /></span><h1>تأكيد بيانات التوصيل</h1><p>اكتب رقم الهاتف الذي سجلته عند الطلب لعرض حالة التوصيل.</p><form className="admin-login-form" onSubmit={verifyGuestOrder}><label className="field-label">رقم الهاتف<input type="tel" required minLength={8} value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} autoComplete="tel" dir="ltr" /></label><button className="button button-primary auth-submit" type="submit">عرض حالة الطلب</button>{verifiedGuestOrderId === foundOrder.id && <small className="form-error">رقم الهاتف غير مطابق لبيانات الطلب.</small>}</form></section></main>;
+  }
+
+  if (!order) return <main className="orders-page store-container"><Link href="/track-order" className="text-link"><ArrowRight size={15} /> العودة لتتبع الطلبات</Link><section className="orders-empty"><span><PackageCheck size={27} /></span><h1>لم نعثر على هذا الطلب</h1><p>تحقق من رقم الطلب أو سجّل الدخول بالحساب المرتبط به.</p><Link href="/login" className="button button-primary">تسجيل الدخول</Link></section></main>;
 
   const currentStatus = order.status === "SHIPPED" ? "OUT_FOR_DELIVERY" : order.status;
   const currentStep = statusOrder.indexOf(currentStatus);
+  const itemsSubtotal = order.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const shippingFee = order.shippingFee ?? Math.max(0, order.amount - itemsSubtotal);
   return <main className="orders-page store-container">
-    <Link href="/orders" className="text-link orders-back"><ArrowRight size={15} /> العودة إلى طلباتي</Link>
+    <Link href="/track-order" className="text-link orders-back"><ArrowRight size={15} /> العودة لتتبع الطلبات</Link>
     <header className="tracking-heading"><div><span className="eyebrow">تحديثات التوصيل</span><h1>تتبع طلبك</h1><p>رقم الطلب <b dir="ltr">{order.id}</b> <span>·</span> {order.date}</p></div><span className={`status-pill status-${order.status.toLowerCase()}`}>{order.status === "CANCELLED" ? "ملغي" : demoOrderStatusLabels[currentStatus]}</span></header>
     {order.status === "CANCELLED" ? <div className="tracking-cancelled" role="status">تم إلغاء هذا الطلب. تواصل مع خدمة العملاء إذا كنت تحتاج إلى مساعدة.</div> : <section className="tracking-progress" aria-label="مراحل الطلب">
       {steps.map((step, index) => { const complete = index <= currentStep; const Icon = step.icon; return <div className={`tracking-step${complete ? " is-complete" : ""}${index === currentStep ? " is-current" : ""}`} key={step.status}><span className="tracking-step-icon"><Icon size={19} /></span><div><b>{step.title}</b><small>{step.english}</small><p>{step.description}</p></div></div>; })}
     </section>}
     <div className="tracking-layout">
-      <section className="tracking-card"><div className="tracking-card-heading"><h2>المنتجات</h2><span>{new Intl.NumberFormat("ar-EG").format(order.items.reduce((sum, item) => sum + item.quantity, 0))} قطعة</span></div>
+      <section className="tracking-card"><div className="tracking-card-heading"><h2>المنتجات</h2><span>{new Intl.NumberFormat("ar-EG").format(order.items.reduce((sum, item) => sum + item.quantity, 0))} قطع</span></div>
         <div className="tracking-items">{order.items.map((item) => <article className="tracking-item" key={`${order.id}-${item.productId}`}><div className="tracking-item-image" style={item.image ? { backgroundImage: `url("${item.image}")` } : undefined} /><div><h3>{item.title}</h3><p>الكمية: {item.quantity}</p></div><strong>{money(item.quantity * item.unitPrice)}</strong></article>)}</div>
-        <div className="tracking-total"><span>إجمالي الطلب</span><strong>{money(order.amount)}</strong></div>
+        <div className="tracking-total"><span>المنتجات</span><strong>{money(itemsSubtotal)}</strong></div><div className="tracking-total"><span>الشحن</span><strong>{shippingFee ? money(shippingFee) : "مجاني"}</strong></div><div className="tracking-total"><span>إجمالي الطلب</span><strong>{money(order.amount)}</strong></div>
       </section>
-      <aside className="tracking-card tracking-delivery"><div className="tracking-card-heading"><h2>بيانات التوصيل</h2><House size={17} /></div><b>{order.customer}</b><p dir="ltr">{order.phone || "—"}</p><p>{order.shippingAddress || "لم يضف عنوان توصيل"}</p><div className="tracking-payment"><span>طريقة الدفع</span><strong>{paymentLabels[order.paymentMethod]}</strong></div></aside>
+      <aside className="tracking-card tracking-delivery"><div className="tracking-card-heading"><h2>بيانات التوصيل</h2><House size={17} /></div><b>{order.customer}</b><p dir="ltr">{order.phone || "—"}</p><p>{order.shippingAddress || "لم يُضف عنوان توصيل"}</p><div className="tracking-payment"><span>طريقة الدفع</span><strong>{paymentLabels[order.paymentMethod]}</strong></div></aside>
     </div>
   </main>;
 }

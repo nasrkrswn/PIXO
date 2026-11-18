@@ -1,8 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { demoProducts } from "@/lib/demo-products";
-import { fetchSupabaseProducts, isSupabaseConfigured } from "@/lib/supabase";
 import type { StoreProduct } from "@/types/product";
 
 export type DemoOrderStatus = "PENDING" | "CONFIRMED" | "PROCESSING" | "SHIPPED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
@@ -37,6 +36,7 @@ export interface DemoOrder {
   items: DemoOrderItem[];
   date: string;
   amount: number;
+  shippingFee?: number;
   status: DemoOrderStatus;
 }
 
@@ -52,11 +52,8 @@ export interface DemoPromotion {
 
 interface MockDataValue {
   products: StoreProduct[];
-  productsLoading: boolean;
-  productsError: string;
   orders: DemoOrder[];
   promotions: DemoPromotion[];
-  refreshProducts: () => Promise<void>;
   addProduct: (product: StoreProduct) => void;
   addOrder: (order: DemoOrder) => void;
   updateOrderStatus: (orderId: string, status: DemoOrderStatus) => void;
@@ -64,11 +61,11 @@ interface MockDataValue {
 
 const STORAGE_KEY = "pixo.demo.store.v1";
 const initialOrders: Array<Omit<DemoOrder, "customerId" | "customerEmail" | "phone" | "shippingAddress" | "paymentMethod" | "items">> = [
-  { id: "PX-2048", customer: "سارة محمد", date: "اليوم، ١٠:٤٢ ص", amount: 2450, status: "PROCESSING" },
-  { id: "PX-2047", customer: "عمر خالد", date: "اليوم، ٩:١٨ ص", amount: 1290, status: "PENDING" },
-  { id: "PX-2046", customer: "نور أحمد", date: "أمس، ٦:٥٣ م", amount: 3875, status: "SHIPPED" },
-  { id: "PX-2045", customer: "مريم علي", date: "أمس، ٤:١١ م", amount: 875, status: "DELIVERED" },
-  { id: "PX-2044", customer: "كريم حسن", date: "١٨ مايو، ١:٣٦ م", amount: 5490, status: "PROCESSING" },
+  { id: "PX-2048", customer: "\u0633\u0627\u0631\u0629 \u0645\u062d\u0645\u062f", date: "2026-11-18 10:42", amount: 2450, status: "PROCESSING" },
+  { id: "PX-2047", customer: "\u0639\u0645\u0631 \u062e\u0627\u0644\u062f", date: "2026-11-18 09:18", amount: 1290, status: "PENDING" },
+  { id: "PX-2046", customer: "\u0646\u0648\u0631 \u0623\u062d\u0645\u062f", date: "2026-11-17 18:53", amount: 3875, status: "SHIPPED" },
+  { id: "PX-2045", customer: "\u0645\u0631\u064a\u0645 \u0639\u0644\u064a", date: "2026-11-17 16:11", amount: 875, status: "DELIVERED" },
+  { id: "PX-2044", customer: "\u0643\u0631\u064a\u0645 \u062d\u0633\u0646", date: "2026-11-16 13:36", amount: 5490, status: "PROCESSING" },
 ];
 const completeInitialOrders: DemoOrder[] = initialOrders.map((order, index) => {
   const product = demoProducts[index % demoProducts.length];
@@ -78,7 +75,7 @@ const completeInitialOrders: DemoOrder[] = initialOrders.map((order, index) => {
     customerId: `demo-user-${customerEmail}`,
     customerEmail,
     phone: ["01012345678", "01098765432", "01122334455", "01234567890", "01055556666"][index],
-    shippingAddress: ["القاهرة، مدينة نصر", "الجيزة، الدقي", "الإسكندرية، سموحة", "القاهرة، المعادي", "القاهرة، مصر الجديدة"][index],
+    shippingAddress: ["\u0627\u0644\u0642\u0627\u0647\u0631\u0629\u060c \u0645\u062f\u064a\u0646\u0629 \u0646\u0635\u0631", "\u0627\u0644\u062c\u064a\u0632\u0629\u060c \u0627\u0644\u062f\u0642\u064a", "\u0627\u0644\u0625\u0633\u0643\u0646\u062f\u0631\u064a\u0629\u060c \u0633\u0645\u0648\u062d\u0629", "\u0627\u0644\u0642\u0627\u0647\u0631\u0629\u060c \u0627\u0644\u0645\u0639\u0627\u062f\u064a", "\u0627\u0644\u0642\u0627\u0647\u0631\u0629\u060c \u0645\u0635\u0631 \u0627\u0644\u062c\u062f\u064a\u062f\u0629"][index],
     paymentMethod: index === 2 || index === 4 ? "card" : "cod",
     items: [{ productId: product.id, title: product.title, quantity: index === 4 ? 2 : 1, unitPrice: Math.round(order.amount / (index === 4 ? 2 : 1)), image: product.images[0] }],
   };
@@ -86,7 +83,7 @@ const completeInitialOrders: DemoOrder[] = initialOrders.map((order, index) => {
 
 const initialPromotions: DemoPromotion[] = [{
   id: "demo-flash-sale",
-  name: "خصم فلاش ٢٠٪ على اختيارات PIXO",
+  name: "\u062e\u0635\u0645 \u0641\u0644\u0627\u0634 20% \u0639\u0644\u0649 \u0627\u062e\u062a\u064a\u0627\u0631\u0627\u062a PIXO",
   kind: "FLASH_SALE",
   type: "PERCENTAGE",
   value: 20,
@@ -97,49 +94,21 @@ const initialPromotions: DemoPromotion[] = [{
 const MockDataContext = createContext<MockDataValue | null>(null);
 
 export function MockDataProvider({ children }: { children: ReactNode }) {
-  const [products, setProducts] = useState<StoreProduct[]>(isSupabaseConfigured ? [] : demoProducts);
-  const [productsLoading, setProductsLoading] = useState(isSupabaseConfigured);
-  const [productsError, setProductsError] = useState("");
+  const [products, setProducts] = useState<StoreProduct[]>(demoProducts);
   const [orders, setOrders] = useState<DemoOrder[]>(completeInitialOrders);
   const [promotions, setPromotions] = useState<DemoPromotion[]>(initialPromotions);
   const [hydrated, setHydrated] = useState(false);
 
-  const refreshProducts = useCallback(async () => {
-    if (!isSupabaseConfigured) return;
-    try {
-      const remoteProducts = await fetchSupabaseProducts();
-      setProducts(remoteProducts);
-      setProductsError("");
-    } catch (cause) {
-      setProductsError(cause instanceof Error ? cause.message : "تعذر تحميل كتالوج المنتجات من Supabase.");
-    } finally {
-      setProductsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     let active = true;
-    let syncing = false;
-    const syncProducts = async () => {
-      if (syncing || !active) return;
-      syncing = true;
-      try {
-        await refreshProducts();
-      } finally {
-        syncing = false;
-      }
-    };
-
     void Promise.resolve().then(() => {
       try {
         const raw = window.localStorage.getItem(STORAGE_KEY);
         if (raw) {
           const stored: unknown = JSON.parse(raw);
           if (isStoredMockData(stored)) {
-            if (!isSupabaseConfigured) {
-              const demoIds = new Set(demoProducts.map((product) => product.id));
-              setProducts([...demoProducts, ...stored.products.filter((product) => !demoIds.has(product.id))]);
-            }
+            const demoIds = new Set(demoProducts.map((product) => product.id));
+            setProducts([...demoProducts, ...stored.products.filter((product) => !demoIds.has(product.id))]);
             setOrders(stored.orders.map(normalizeStoredOrder));
             setPromotions(stored.promotions);
           }
@@ -149,35 +118,21 @@ export function MockDataProvider({ children }: { children: ReactNode }) {
       } finally {
         if (active) setHydrated(true);
       }
-      if (isSupabaseConfigured) void syncProducts();
     });
-
-    if (isSupabaseConfigured) {
-      const interval = window.setInterval(() => {
-        if (!document.hidden) void syncProducts();
-      }, 20_000);
-      const refreshWhenVisible = () => {
-        if (document.visibilityState === "visible") void syncProducts();
-      };
-      window.addEventListener("focus", refreshWhenVisible);
-      document.addEventListener("visibilitychange", refreshWhenVisible);
-      return () => {
-        active = false;
-        window.clearInterval(interval);
-        window.removeEventListener("focus", refreshWhenVisible);
-        document.removeEventListener("visibilitychange", refreshWhenVisible);
-      };
-    }
-
     return () => { active = false; };
-  }, [refreshProducts]);
+  }, []);
 
   useEffect(() => {
     function syncOrdersAcrossTabs(event: StorageEvent) {
       if (event.key !== STORAGE_KEY || !event.newValue) return;
       try {
         const stored: unknown = JSON.parse(event.newValue);
-        if (isStoredMockData(stored)) setOrders(stored.orders.map(normalizeStoredOrder));
+        if (isStoredMockData(stored)) {
+          const demoIds = new Set(demoProducts.map((product) => product.id));
+          setProducts([...demoProducts, ...stored.products.filter((product) => !demoIds.has(product.id))]);
+          setOrders(stored.orders.map(normalizeStoredOrder));
+          setPromotions(stored.promotions);
+        }
       } catch { /* Ignore malformed local preview data. */ }
     }
     window.addEventListener("storage", syncOrdersAcrossTabs);
@@ -185,7 +140,7 @@ export function MockDataProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     if (hydrated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      products: isSupabaseConfigured ? [] : products,
+      products,
       orders,
       promotions,
     }));
@@ -193,15 +148,12 @@ export function MockDataProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<MockDataValue>(() => ({
     products,
-    productsLoading,
-    productsError,
     orders,
     promotions,
-    refreshProducts,
     addProduct: (product) => setProducts((current) => [product, ...current.filter((item) => item.id !== product.id)]),
     addOrder: (order) => setOrders((current) => [order, ...current]),
     updateOrderStatus: (orderId, status) => setOrders((current) => current.map((order) => order.id === orderId ? { ...order, status } : order)),
-  }), [orders, products, promotions, productsLoading, productsError, refreshProducts]);
+  }), [orders, products, promotions]);
 
   return <MockDataContext.Provider value={value}>{children}</MockDataContext.Provider>;
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { isSupabaseConfigured, restoreSupabaseAdmin, signInSupabaseAdmin, signOutSupabaseAdmin } from "@/lib/supabase";
 
 export interface DemoUser {
   id: string;
@@ -27,6 +26,7 @@ interface AuthContextValue {
 
 const CUSTOMER_SESSION_KEY = "pixo.customer.session.v2";
 const ADMIN_SESSION_KEY = "pixo.admin.session.v1";
+const LEGACY_SUPABASE_ADMIN_SESSION_KEY = "pixo.supabase.admin.session.v1";
 const CUSTOMER_ACCOUNTS_KEY = "pixo.customer.accounts.v1";
 const LEGACY_SESSION_KEY = "pixo.demo.session.v1";
 const DEMO_ADMIN_EMAIL = "admin@pixo.local";
@@ -66,12 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const customerSession: unknown = JSON.parse(window.localStorage.getItem(CUSTOMER_SESSION_KEY) ?? "null");
         const adminSession: unknown = JSON.parse(window.localStorage.getItem(ADMIN_SESSION_KEY) ?? "null");
+        window.localStorage.removeItem(LEGACY_SUPABASE_ADMIN_SESSION_KEY);
         if (active && isUser(customerSession, "CUSTOMER")) setUser(customerSession);
-        if (!isSupabaseConfigured && active && isUser(adminSession, "ADMIN") && adminSession.email.toLowerCase() === DEMO_ADMIN_EMAIL) setAdminUser(adminSession);
-        if (isSupabaseConfigured) {
-          const restoredAdmin = await restoreSupabaseAdmin();
-          if (active && restoredAdmin) setAdminUser({ ...restoredAdmin, role: "ADMIN", createdAt: new Date().toISOString() });
-        }
+        if (active && isUser(adminSession, "ADMIN") && adminSession.email.toLowerCase() === DEMO_ADMIN_EMAIL) setAdminUser(adminSession);
 
         // Migrate old customer sessions only. A shared legacy admin session cannot bypass admin login.
         const legacy: unknown = JSON.parse(window.localStorage.getItem(LEGACY_SESSION_KEY) ?? "null");
@@ -137,19 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     loginAdmin: async (email, password) => {
       setError("");
-      if (isSupabaseConfigured) {
-        try {
-          const admin = await signInSupabaseAdmin(email, password);
-          const sessionAdmin: DemoUser = { ...admin, role: "ADMIN", createdAt: new Date().toISOString() };
-          setAdminUser(sessionAdmin);
-          window.localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(sessionAdmin));
-          return sessionAdmin;
-        } catch (cause) {
-          const message = cause instanceof Error ? cause.message : "تعذر تسجيل الدخول إلى Supabase.";
-          setError(message);
-          throw new Error(message);
-        }
-      }
       if (email.trim().toLowerCase() !== DEMO_ADMIN_EMAIL || !password) {
         const message = "\u0628\u064a\u0627\u0646\u0627\u062a \u062f\u062e\u0648\u0644 \u0627\u0644\u0623\u062f\u0645\u0646 \u063a\u064a\u0631 \u0635\u0627\u0644\u062d\u0629. \u0627\u0633\u062a\u062e\u062f\u0645 admin@pixo.local \u0641\u064a \u0627\u0644\u0648\u0636\u0639 \u0627\u0644\u062a\u062c\u0631\u064a\u0628\u064a.";
         setError(message); throw new Error(message);
@@ -164,7 +148,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null); setError("");
     },
     logoutAdmin: async () => {
-      if (isSupabaseConfigured) await signOutSupabaseAdmin();
       window.localStorage.removeItem(ADMIN_SESSION_KEY);
       setAdminUser(null); setError("");
     },

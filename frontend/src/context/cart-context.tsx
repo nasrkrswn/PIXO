@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { StoreProduct } from "@/types/product";
+import { useMockData } from "@/context/mock-data-context";
 
 const STORAGE_KEY = "pixo.cart.demo.v2";
 
@@ -26,6 +27,7 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { products } = useMockData();
   const [items, setItems] = useState<CartLine[]>([]);
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -52,6 +54,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (hydrated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [hydrated, items]);
 
+  useEffect(() => {
+    if (!hydrated) return;
+    setItems((current) => current.map((line) => {
+      const latest = products.find((product) => product.id === line.product.id);
+      return latest ? { ...line, product: latest, quantity: Math.min(line.quantity, latest.stockQuantity ?? line.quantity) } : line;
+    }));
+  }, [hydrated, products]);
+
   const value = useMemo<CartContextValue>(() => {
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
     const subtotal = items.reduce((sum, item) => sum + Math.round(Number(item.product.price) * 100) * item.quantity, 0) / 100;
@@ -65,17 +75,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
           const existing = current.find((line) => line.product.id === product.id);
           if (existing) {
             return current.map((line) => line.product.id === product.id
-              ? { ...line, quantity: Math.min(line.quantity + 1, product.stockQuantity) }
+              ? { ...line, product, quantity: Math.min(line.quantity + 1, product.stockQuantity ?? line.quantity + 1) }
               : line);
           }
+          if ((product.stockQuantity ?? 0) < 1) return current;
           return [...current, { product, quantity: 1 }];
         });
       },
       setQuantity: (productId, quantity) => setItems((current) => current.flatMap((line) => {
         if (line.product.id !== productId) return [line];
         if (quantity <= 0) return [];
-        if (line.product.stockQuantity <= 0) return [];
-        return [{ ...line, quantity: Math.min(quantity, line.product.stockQuantity) }];
+        if ((line.product.stockQuantity ?? 0) <= 0) return [];
+        return [{ ...line, quantity: Math.min(quantity, line.product.stockQuantity ?? 0) }];
       })),
       removeItem: (productId) => setItems((current) => current.filter((line) => line.product.id !== productId)),
       clearCart: () => setItems([]),
