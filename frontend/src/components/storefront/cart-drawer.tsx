@@ -18,7 +18,7 @@ export function CartDrawer() {
           {items.length === 0 ? <div className="drawer-empty"><span><ShoppingBag size={28} /></span><strong>السلة لسه فاضية</strong><p>اكتشف اختيارات PIXO وأضف اللي يعجبك.</p><button className="button button-primary" onClick={closeDrawer}>ابدأ التسوق</button></div> : items.map(({ product, quantity }) => (
             <article className="drawer-line" key={product.id}>
               <div className="line-image" style={product.images[0] ? { backgroundImage: `url("${product.images[0]}")` } : undefined} />
-              <div className="line-content"><strong>{product.title}</strong><span>{money(Number(product.price))}</span><div className="quantity-control"><button onClick={() => setQuantity(product.id, quantity - 1)} aria-label="تقليل الكمية"><Minus size={13} /></button><b>{quantity}</b><button onClick={() => setQuantity(product.id, quantity + 1)} aria-label="زيادة الكمية" disabled={quantity >= product.stockQuantity}><Plus size={13} /></button></div></div>
+              <div className="line-content"><strong>{product.title}</strong><span>{money(Number(product.price))}</span><div className="quantity-control"><button onClick={() => setQuantity(product.id, quantity - 1)} aria-label="تقليل الكمية"><Minus size={13} /></button><b>{quantity}</b><button onClick={() => setQuantity(product.id, quantity + 1)} aria-label="زيادة الكمية" disabled={quantity >= (product.stockQuantity ?? 0)}><Plus size={13} /></button></div></div>
               <button className="remove-line" onClick={() => removeItem(product.id)} aria-label="حذف المنتج"><Trash2 size={16} /></button>
             </article>
           ))}

@@ -32,9 +32,10 @@ export default function OrderTrackingPage() {
   if (loading) return <main className="orders-page store-container"><section className="orders-empty">جارٍ التحقق من حسابك...</section></main>;
 
   if (foundOrder && foundOrder.customerId === null && !order) {
+    const guestOrderId = foundOrder.id;
     function verifyGuestOrder(event: FormEvent<HTMLFormElement>) {
       event.preventDefault();
-      setVerifiedGuestOrderId(foundOrder.id);
+      setVerifiedGuestOrderId(guestOrderId);
     }
     return <main className="orders-page store-container"><Link href="/track-order" className="text-link orders-back"><ArrowRight size={15} /> العودة لتتبع الطلبات</Link><section className="orders-empty"><span><PackageCheck size={27} /></span><h1>تأكيد بيانات التوصيل</h1><p>اكتب رقم الهاتف الذي سجلته عند الطلب لعرض حالة التوصيل.</p><form className="admin-login-form" onSubmit={verifyGuestOrder}><label className="field-label">رقم الهاتف<input type="tel" required minLength={8} value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} autoComplete="tel" dir="ltr" /></label><button className="button button-primary auth-submit" type="submit">عرض حالة الطلب</button>{verifiedGuestOrderId === foundOrder.id && <small className="form-error">رقم الهاتف غير مطابق لبيانات الطلب.</small>}</form></section></main>;
   }
